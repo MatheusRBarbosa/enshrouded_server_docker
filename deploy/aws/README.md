@@ -51,6 +51,18 @@ PROFILE=enshrouded REGION=us-east-2 ./deploy/aws/apply-config.sh
 
 It shows the diff, stops the server, takes a backup, writes the config and starts the server again. Passwords come from `secrets.env`, or are kept from the live server when missing there. The ban list is always kept from the live server. Valid ranges for each setting are in [docs/enshrouded_server.md](../../docs/enshrouded_server.md).
 
+## Dashboard (start/stop, schedule, backups, logs)
+
+Friends manage the server from a page with a shared login:
+- start and stop it
+- skip the nightly automatic stop (00:00 São Paulo time; there's no automatic start)
+- take and download backups (hourly, kept 48 h)
+- read the logs and see the live settings
+
+Deploy it with `PROFILE=enshrouded REGION=us-east-2 ./dashboard/deploy.sh`. Remove it with `... ./dashboard/deploy.sh remove`, which leaves the game server and the `world/` backups alone. `launch.sh` reinstalls its agent when it replaces the instance.
+
+While the dashboard is installed, it replaces the 6-hourly backup timer below with hourly backups. See [dashboard/README.md](../../dashboard/README.md).
+
 ## Backups
 
 - Every 6 hours a systemd timer uploads `savegame/` + `enshrouded_server.json` to `s3://<bucket>/world/<UTC timestamp>.tar.gz`. Missed runs (instance stopped) run at next boot.

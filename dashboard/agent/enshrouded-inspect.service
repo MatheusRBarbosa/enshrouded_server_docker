@@ -1,0 +1,8 @@
+[Unit]
+Description=Publish a sanitized Enshrouded settings snapshot for the dashboard
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/enshrouded-inspect

@@ -188,6 +188,12 @@ scp -q -i "$KEY_FILE" -o UserKnownHostsFile="$KNOWN_HOSTS" \
         -p 15637:15637/udp -e PUID=1000 -e PGID=1000 \
         -v /srv/enshrouded:/home/steam/enshrouded enshrouded:local'
 
+# A replaced instance needs the dashboard's inspection agent again (only if the dashboard is deployed)
+if aws lambda get-function --function-name enshrouded-dashboard >/dev/null 2>&1; then
+    log "Reinstalling the dashboard agent"
+    PROFILE="$PROFILE" REGION="$REGION" BUCKET="$BUCKET" "$REPO_DIR/dashboard/deploy.sh" agent
+fi
+
 cat <<EOF
 
 Done. Instance $INSTANCE ($INSTANCE_TYPE) in $REGION, address $EIP:15637

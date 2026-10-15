@@ -1,0 +1,96 @@
+[I 00:00:00,042] -----------------------------------------------------------------------------------------------------------
+[I 00:00:00,042]                      /\ \                             /\ \           /\ \
+[I 00:00:00,042]    __    ___     ____\ \ \___   _ __   ___   __  __   \_\ \     __   \_\ \
+[I 00:00:00,042]  /'__`\/' _ `\  /',__\\ \  _ `\/\`'__\/ __`\/\ \/\ \  /'_` \  /'__`\ /'_` \
+[I 00:00:00,042] /\  __//\ \/\ \/\__, `\\ \ \ \ \ \ \//\ \L\ \ \ \_\ \/\ \L\ \/\  __//\ \L\ \
+[I 00:00:00,042] \ \____\ \_\ \_\/\____/ \ \_\ \_\ \_\\ \____/\ \____/\ \___,_\ \____\ \___,_\
+[I 00:00:00,042]  \/____/\/_/\/_/\/___/   \/_/\/_/\/_/ \/___/  \/___/  \/__,_ /\/____/\/__,_ /
+[I 00:00:00,042] 
+[I 00:00:00,042]   ____     __   _ __   __  __     __   _ __
+[I 00:00:00,042]  /',__\  /'__`\/\`'__\/\ \/\ \  /'__`\/\`'__\
+[I 00:00:00,042] /\__, `\/\  __/\ \ \/ \ \ \_/ |/\  __/\ \ \/
+[I 00:00:00,042] \/\____/\ \____\\ \_\  \ \___/ \ \____\\ \_\
+[I 00:00:00,042]  \/___/  \/____/ \/_/   \/__/   \/____/ \/_/
+[I 00:00:00,042] -----------------------------------------------------------------------------------------------------------
+[I 00:00:00,042] enshrouded_server(detached HEAD) - version a07fae726ce00447d7ba92972c872505fb2b9468 (master)
+[I 00:00:00,042] Cmd-Parameters:
+[I 00:00:00,042] Config Parsed: 'Z:/home/steam/enshrouded/enshrouded_server.json'
+[I 00:00:00,042] Current UTC date: 2026.10.15 18:11:29
+[E 00:00:00,043] [os] Query size of value 'DisplayVersion' in 'SOFTWARE\Microsoft\Windows NT\CurrentVersion' failed with error '2'.
+[I 00:00:00,043] CpuInfo:
+[I 00:00:03,329] [app] start creation step Init_Version
+[I 00:00:03,329] Game Version (SVN): 1265863
+[I 00:00:03,329] [app] start creation step Init_UserSystem
+[I 00:00:03,566] [server] Game Settings 'Custom'
+[I 00:00:03,566] {
+[I 00:00:03,566] 	"playerHealthFactor": "1",
+[I 00:00:03,566] 	"playerManaFactor": "1",
+[I 00:00:03,566] 	"playerStaminaFactor": "1",
+[I 00:00:03,566] 	"playerBodyHeatFactor": "1",
+[I 00:00:03,566] 	"playerDivingTimeFactor": "1",
+[I 00:00:03,566] 	"enableDurability": true,
+[I 00:00:03,566] 	"enableStarvingDebuff": false,
+[I 00:00:03,566] 	"foodBuffDurationFactor": "3f666666",
+[I 00:00:03,566] 	"fromHungerToStarving": {
+[I 00:00:03,566] 		"value": 600000000000
+[I 00:00:03,566] 	},
+[I 00:00:03,566] 	"shroudTimeFactor": "1",
+[I 00:00:03,566] 	"tombstoneMode": "AddBackpackMaterials",
+[I 00:00:03,566] 	"enableGliderTurbulences": true,
+[I 00:00:03,566] 	"weatherFrequency": "Normal",
+[I 00:00:03,566] 	"fishingDifficulty": "Normal",
+[I 00:00:03,566] 	"miningDamageFactor": "3fc00000",
+[I 00:00:03,566] 	"plantGrowthSpeedFactor": "40000000",
+[I 00:00:03,566] 	"resourceDropStackAmountFactor": "3fc00000",
+[I 00:00:03,566] 	"factoryProductionSpeedFactor": "40000000",
+[I 00:00:03,566] 	"perkUpgradeRecyclingFactor": "3f000000",
+[I 00:00:03,566] 	"perkCostFactor": "1",
+[I 00:00:03,566] 	"experienceCombatFactor": "3fc00000",
+[I 00:00:03,566] 	"experienceMiningFactor": "1",
+[I 00:00:03,566] 	"experienceExplorationQuestsFactor": "3fc00000",
+[I 00:00:03,566] 	"randomSpawnerAmount": "Many",
+[I 00:00:03,566] 	"aggroPoolAmount": "Normal",
+[I 00:00:03,566] 	"enemyDamageFactor": "3fc00000",
+[I 00:00:03,566] 	"enemyHealthFactor": "1",
+[I 00:00:03,566] 	"enemyStaminaFactor": "1",
+[I 00:00:03,566] 	"enemyPerceptionRangeFactor": "1",
+[I 00:00:03,566] 	"bossDamageFactor": "1",
+[I 00:00:03,566] 	"bossHealthFactor": "3fc00000",
+[I 00:00:03,566] 	"threatBonus": "3fc00000",
+[I 00:00:03,566] 	"pacifyAllEnemies": false,
+[I 00:00:03,566] 	"tamingStartleRepercussion": "LoseSomeProgress",
+[I 00:00:03,566] 	"dayTimeDuration": {
+[I 00:00:03,566] 		"value": 1800000000000
+[I 00:00:03,566] 	},
+[I 00:00:03,566] 	"nightTimeDuration": {
+[I 00:00:03,566] 		"value": 720000000000
+[I 00:00:03,566] 	},
+[I 00:00:03,566] 	"curseModifier": "Normal",
+[I 00:00:03,566] 	"flameLevelFogRemoval": 11
+[I 00:00:03,566] }
+[I 00:00:03,566] [game_server] Switching state from Initialize to Load after 161.52 ms
+[I 00:00:03,609] [TerraformingEfficiencyRegistry] Finished loading.
+[I 00:00:03,610] [ecss] Programs: 817
+[E 00:00:03,659] [ecss] Could not find component 6b1adfa8 when loading template Benchmark
+[I 00:00:03,665] [ecss] Initialized 12,266 template infos
+[I 00:00:03,707] [guid_registry] : Finished loading entry e284b901-c3dd-4282-8a4e-0a618e5763f5.
+[I 00:00:03,707] [guid_registry] : Finished loading entry 27a9e067-4b9f-45cf-b966-208a5ecbd53b.
+[I 00:00:03,707] [guid_registry] : Finished loading entry 85e3baea-7c93-4d6f-b1be-42f79b036761.
+[I 00:00:03,707] [guid_registry] : Finished loading entry 28c4b2ca-4a01-4ba9-9e05-49c871df6904.
+[I 00:00:03,707] [guid_registry] : Finished loading entry ec28c5d5-9d23-413e-b238-781157fb2f65.
+[I 00:00:03,707] [guid_registry] : Finished loading entry 5d9bd376-5b7f-4db4-8f2e-6a3e564194b1.
+[I 00:00:03,707] [guid_registry] : Finished loading entry 34aa0c3c-9a88-4f8b-a070-64827a5fdabf.
+[I 00:00:04,540] [online] Server connected to Steam successfully
+[I 00:00:04,694] [online] Server is not VAC Secure!
+[I 00:00:04,695] [online] Public ipv4: 203.0.113.10
+[I 00:00:04,695] [OnlineProviderSteam] 'Initialize' (up)!
+[I 00:00:04,696] [OnlineProviderSteam] 'JoinOrCreateGame' (up)!
+[I 00:00:04,696] Initializing P2P api: NetworkingMessages
+[I 00:00:04,696] [OnlineProviderSteam] 'SetLobbyData' (up)!
+[I 00:00:04,696] [OnlineProviderSteam] 'JoinLocalPlayers' (up)!
+[I 00:00:04,696] [OnlineProviderSteam] 'ConnectToPeers' (up)!
+[I 00:00:04,696] [OnlineProviderSteam] finished transition from 'Uninitialized' to 'InGame' (current='InGame')!
+[I 00:00:04,698] [Session] 'HostOnline' (up)!
+[I 00:00:04,698] [Session] finished transition from 'Lobby' to 'Host_Online' (current='Host_Online')!
+[I 00:02:09,654] [server] Machine '1': Player '0(0)' logged in
+[I 00:02:09,657] [server] Player 'FixturePlayer' logged in with Permissions:

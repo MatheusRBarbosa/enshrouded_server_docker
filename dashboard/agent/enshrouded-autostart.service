@@ -1,0 +1,12 @@
+[Unit]
+Description=Start the Enshrouded container at boot (it stays stopped after a dashboard stop otherwise)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker start enshrouded
+
+[Install]
+WantedBy=multi-user.target

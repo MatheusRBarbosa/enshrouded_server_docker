@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Server Dashboard</title>
+<meta name="description" content="Manage the Enshrouded dedicated server.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="eyebrow">Enshrouded dedicated server</div>
+      <h1 id="server-name">Server dashboard</h1>
+    </div>
+    <div class="session" id="session-box" hidden>
+      <span class="muted" id="session-user"></span>
+      <button type="button" class="btn small ghost" id="logout">Log out</button>
+    </div>
+  </header>
+
+  <!-- Login -->
+  <section id="login-view" class="login" hidden aria-labelledby="login-title">
+    <h2 id="login-title">Log in</h2>
+    <p class="muted">Use the shared login from the server admin.</p>
+    <form id="login-form" novalidate>
+      <label>Username <input name="username" autocomplete="username" required></label>
+      <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+      <p class="form-error" id="login-error" role="alert"></p>
+      <button type="submit" class="btn primary" id="login-submit">Log in</button>
+    </form>
+  </section>
+
+  <!-- App -->
+  <div id="app-view" hidden>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#overview" data-tab="overview">Overview</a>
+      <a href="#schedule" data-tab="schedule">Schedule</a>
+      <a href="#backups" data-tab="backups">Backups</a>
+      <a href="#logs" data-tab="logs">Logs</a>
+      <a href="#settings" data-tab="settings">Settings</a>
+    </nav>
+
+    <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
+
+    <!-- Overview -->
+    <section id="tab-overview" class="tab" aria-label="Overview">
+      <div class="status-hero" id="hero" data-state="loading">
+        <div class="hero-main">
+          <span class="pill" id="hero-pill">Loading</span>
+          <p class="hero-detail" id="hero-detail"></p>
+          <div class="address" id="address-box" hidden>
+            <span class="k">Address</span><span class="v mono" id="address"></span>
+            <button type="button" class="btn small" id="copy-address">Copy</button>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="act-start">Start server</button>
+          <button type="button" class="btn danger" id="act-stop">Stop server</button>
+          <button type="button" class="btn" id="act-backup">Create backup</button>
+          <button type="button" class="btn ghost" id="act-refresh">Refresh</button>
+        </div>
+      </div>
+      <p class="times" id="overview-times">&nbsp;</p>
+      <div class="cards" id="overview-cards"></div>
+    </section>
+
+    <!-- Schedule -->
+    <section id="tab-schedule" class="tab" aria-label="Schedule" hidden>
+      <div class="section-head">
+        <div><h2>Schedule</h2><p class="times" id="schedule-times">&nbsp;</p></div>
+        <div class="toolbar"><button type="button" class="btn ghost" id="schedule-refresh">Refresh</button></div>
+      </div>
+      <div id="schedule-content"><div class="skeleton" aria-hidden="true"><div></div><div></div><div></div></div></div>
+    </section>
+
+    <!-- Backups -->
+    <section id="tab-backups" class="tab" aria-label="Backups" hidden>
+      <div class="section-head">
+        <div><h2>Backups</h2><p class="times">Hourly while the server runs, and before every stop. Kept for 48 hours; the latest good one is always kept.</p></div>
+        <div class="toolbar">
+          <button type="button" class="btn ghost" id="backups-refresh">Refresh</button>
+          <button type="button" class="btn primary" id="backups-create">Create backup now</button>
+        </div>
+      </div>
+      <div id="backups-latest"></div>
+      <div id="backups-content"><div class="skeleton" aria-hidden="true"><div></div><div></div><div></div></div></div>
+      <div class="more"><button type="button" class="btn ghost" id="backups-more" hidden>Load older backups</button></div>
+    </section>
+
+    <!-- Logs -->
+    <section id="tab-logs" class="tab" aria-label="Logs" hidden>
+      <div class="section-head">
+        <div><h2>Logs</h2><p class="times" id="logs-times">&nbsp;</p></div>
+      </div>
+      <form class="log-controls" id="log-form">
+        <label>Source
+          <select name="source" id="log-source">
+            <option value="game">Game server</option>
+            <option value="container">Container (updates, startup)</option>
+            <option value="backup">Backups</option>
+          </select>
+        </label>
+        <label>Last
+          <select name="minutes" id="log-minutes">
+            <option value="15">15 min</option>
+            <option value="60" selected>1 hour</option>
+            <option value="360">6 hours</option>
+            <option value="1440">24 hours</option>
+          </select>
+        </label>
+        <label class="grow">Filter <input name="filter" id="log-filter" maxlength="100" placeholder="Text to find"></label>
+        <label class="toggle"><input type="checkbox" id="log-auto" checked> Auto-refresh (15 s)</label>
+        <button type="submit" class="btn primary">Refresh</button>
+        <button type="button" class="btn ghost" id="log-copy">Copy</button>
+      </form>
+      <div id="logs-content" class="log-box" tabindex="0" aria-label="Log lines"></div>
+    </section>
+
+    <!-- Settings (secondary) -->
+    <section id="tab-settings" class="tab" aria-label="Server settings" hidden>
+      <div class="section-head">
+        <div><h2>Server settings</h2><p class="times" id="times">&nbsp;</p></div>
+        <div class="toolbar">
+          <label class="toggle"><input type="checkbox" id="only-changed"> Only changes from default</label>
+          <button type="button" class="btn" id="copy-summary" disabled>Copy summary</button>
+          <button type="button" class="btn ghost" id="refresh">Refresh</button>
+        </div>
+      </div>
+      <div id="notices"></div>
+      <details class="legend">
+        <summary>What the labels mean</summary>
+        <dl>
+          <div><dt><span class="badge applied">Applied</span></dt><dd>The running server reported this value itself, in its startup log or to Steam.</dd></div>
+          <div><dt><span class="badge configured">Configured</span></dt><dd>Read from the server's config file, which the server loaded when it started. The server doesn't report these back.</dd></div>
+          <div><dt><span class="badge pending">Restart needed</span></dt><dd>The config file was changed after the server started. The new value applies after the next restart.</dd></div>
+          <div><dt><span class="badge runtime">Live</span></dt><dd>A fact about the running server or its machine, not a setting.</dd></div>
+          <div><dt><span class="badge unknown">Unknown</span></dt><dd>Couldn't be determined right now.</dd></div>
+        </dl>
+        <p>The server reads its settings once, when it starts. Every setting here changes only with a restart, except the ban list, which the server updates itself when an admin bans someone in game. "Default" compares a value with the game's Default preset. Hover over a status label to see where its value came from.</p>
+      </details>
+      <div id="content" aria-busy="true"><div class="skeleton" aria-hidden="true"><div></div><div></div><div></div></div></div>
+    </section>
+  </div>
+
+  <footer>Passwords and keys are never sent to this page.</footer>
+</div>
+
+<dialog id="confirm" aria-labelledby="confirm-title">
+  <form method="dialog">
+    <h3 id="confirm-title"></h3>
+    <p id="confirm-text"></p>
+    <div class="dialog-actions">
+      <button value="cancel" class="btn ghost">Cancel</button>
+      <button value="ok" class="btn danger" id="confirm-ok">Confirm</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

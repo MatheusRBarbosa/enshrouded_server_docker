@@ -6,3 +6,7 @@ CLAUDE.md
 
 # Server passwords for deploy/aws (repo is public)
 deploy/aws/secrets.env
+dashboard/secrets.env
+
+# Python bytecode (dashboard tests, dev server)
+__pycache__/

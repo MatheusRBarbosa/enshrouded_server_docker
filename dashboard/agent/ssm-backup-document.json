@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Enshrouded dashboard: back up the world to S3, optionally stopping the game first. Fixed command; only these validated parameters vary.",
+  "parameters": {
+    "BackupId": {"type": "String", "allowedPattern": "^[0-9]{8}T[0-9]{6}Z-(automatic|manual|shutdown)$"},
+    "Type": {"type": "String", "allowedValues": ["automatic", "manual", "shutdown"]},
+    "StopServer": {"type": "String", "allowedValues": ["yes", "no"], "default": "no"}
+  },
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "backup",
+      "inputs": {
+        "timeoutSeconds": "600",
+        "runCommand": ["/usr/local/bin/enshrouded-dashboard-backup --id '{{BackupId}}' --type '{{Type}}' --stop-server '{{StopServer}}'"]
+      }
+    }
+  ]
+}

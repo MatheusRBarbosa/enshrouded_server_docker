@@ -1,0 +1,15 @@
+{
+  "agent": {"run_as_user": "root"},
+  "logs": {
+    "force_flush_interval": 5,
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {"file_path": "/srv/enshrouded/logs/enshrouded_server.log", "log_group_name": "/enshrouded/server", "log_stream_name": "game"},
+          {"file_path": "/var/lib/docker/containers/*/*-json.log", "log_group_name": "/enshrouded/server", "log_stream_name": "container"},
+          {"file_path": "/var/log/enshrouded-dashboard-backup.log", "log_group_name": "/enshrouded/server", "log_stream_name": "backup"}
+        ]
+      }
+    }
+  }
+}

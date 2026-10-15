@@ -1,0 +1,8 @@
+# Fly.io deployment config (local only)
+fly.toml
+fly.*.toml
+.fly/
+CLAUDE.md
+
+# Server passwords for deploy/aws (repo is public)
+deploy/aws/secrets.env

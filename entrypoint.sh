@@ -173,8 +173,27 @@ else
 fi
 
 # Update or install the Enshrouded dedicated server using SteamCMD
-./steamcmd +@sSteamCmdForcePlatformType windows +force_install_dir /home/steam/enshrouded +login anonymous +app_update 2278520 +quit
-echo "Server files updated."
+# A fresh SteamCMD often fails the first attempt with "Missing configuration", so retry
+STEAMCMD_LOG="/tmp/steamcmd_update.log"
+UPDATE_OK=false
+for attempt in 1 2 3; do
+    ./steamcmd +@sSteamCmdForcePlatformType windows +force_install_dir /home/steam/enshrouded +login anonymous +app_update 2278520 +quit 2>&1 | tee "$STEAMCMD_LOG"
+    if grep -q "Success! App '2278520'" "$STEAMCMD_LOG"; then
+        UPDATE_OK=true
+        break
+    fi
+    echo "SteamCMD update attempt ${attempt} failed, retrying..." >&2
+    sleep 5
+done
+
+if [ "$UPDATE_OK" = true ]; then
+    echo "Server files updated."
+elif [ -f /home/steam/enshrouded/enshrouded_server.exe ]; then
+    echo "WARNING: SteamCMD update failed; starting the existing server version." >&2
+else
+    echo "ERROR: SteamCMD could not install the server and no existing install was found." >&2
+    exit 1
+fi
 
 # Launch the Enshrouded server executable using Wine
 echo ""

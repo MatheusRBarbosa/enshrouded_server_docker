@@ -219,7 +219,7 @@ The game server must already exist (`deploy/aws/launch.sh`).
 **Monthly cost:**
 - **Added by the dashboard:** about **$0.30**, almost all CloudWatch Logs ingestion (~0.3 GB) plus S3 requests. Lambda, Scheduler, DynamoDB on-demand and SSM Run Command stay within free tiers or cost cents.
 - **Charts:** the memory metric is 1 custom metric, inside CloudWatch's always-free 10; otherwise it would be $0.30/month, prorated to the hours the server runs. Reading the charts costs $0.01 per 1,000 metrics read; at 2 metrics every 5 minutes per viewer, that's cents a month.
-- **Saved by the nightly stop:** the m6a.xlarge and its public IPv4 address ($0.005/h) are billed only for the hours it runs, and it's off from midnight until someone starts it. The disk costs the same either way. There's no Elastic IP, so nothing is charged for an idle address.
+- **Saved by the nightly stop:** the c8i.xlarge (about $0.29/h in São Paulo) and its public IPv4 address ($0.005/h) are billed only for the hours it runs, and it's off from midnight until someone starts it. The disk costs the same either way. There's no Elastic IP, so nothing is charged for an idle address.
 
 ## Remove
 

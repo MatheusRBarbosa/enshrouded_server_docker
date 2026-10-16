@@ -4,7 +4,7 @@
 
 | Resource | Name / tag | Notes |
 |---|---|---|
-| EC2 instance | `Name=enshrouded` | Ubuntu 24.04, m6a.xlarge, 30 GB gp3, termination protection on |
+| EC2 instance | `Name=enshrouded` | Ubuntu 24.04, c8i.xlarge (4 vCPU, 8 GB), 30 GB gp3, termination protection on |
 | Security group | `enshrouded` | UDP 15637 open; SSH only from the IP that ran `launch.sh` |
 | Key pair | `enshrouded` | Private key in `~/.ssh/enshrouded.pem` |
 | S3 bucket | `enshrouded-backups-<account>-<region>` | Private, encrypted |
@@ -13,6 +13,8 @@
 The image is built on the instance from this repo's `Dockerfile` and `entrypoint.sh`. World data lives in `/srv/enshrouded` on the instance.
 
 The server runs in São Paulo (`sa-east-1`). Its backups stayed in the original us-east-2 bucket when it moved, so every command below passes `BUCKET=enshrouded-backups-<account>-us-east-2`.
+
+**Instance size:** the server is CPU-bound. While playing it used about 80% CPU but only about 1.5 GB of RAM on an m6a.xlarge, so it runs on the compute-optimized `c8i.xlarge`, which has faster cores and 8 GB. It must stay x86: the game is a Windows program run through Wine, so ARM types (`c8g`, `c7g`) aren't an option. A 4 GB type would mean only 2 vCPUs. To resize, stop the server, change its type (`ec2 modify-instance-attribute --instance-type Value=<type>`) and start it again; the disk and world are untouched.
 
 **The address changes on every start.** There's no Elastic IP: the instance gets a new public IP each time it starts and has none while stopped. Players find the server by name in the game's server list, or copy the current IP from the dashboard. SSH keeps host keys under the instance ID (`HostKeyAlias`), so a new IP doesn't cause host key warnings.
 

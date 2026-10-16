@@ -7,7 +7,7 @@
 # Optional env:
 #   BUCKET         backup bucket (default enshrouded-backups-<account>-<region>); point it at an
 #                  existing bucket in another region to move the world between regions
-#   INSTANCE_TYPE  default m6a.xlarge
+#   INSTANCE_TYPE  default c8i.xlarge (CPU-optimized x86; the game runs under Wine, so no ARM)
 #   ADMIN_PW, FRIEND_PW, GUEST_PW, VISITOR_PW (or in git-ignored deploy/aws/secrets.env)
 #                  passwords for a fresh world, which is seeded from deploy/aws/enshrouded_server.json
 #                  (passwords are blank in git). Unset ones get a random password, printed once.
@@ -16,7 +16,7 @@ set -euo pipefail
 
 PROFILE="${PROFILE:?set PROFILE}"
 REGION="${REGION:?set REGION}"
-INSTANCE_TYPE="${INSTANCE_TYPE:-m6a.xlarge}"
+INSTANCE_TYPE="${INSTANCE_TYPE:-c8i.xlarge}"
 NAME=enshrouded
 ROLE=enshrouded-server
 KEY_FILE="$HOME/.ssh/enshrouded.pem"

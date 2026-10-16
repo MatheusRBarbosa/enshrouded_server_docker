@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploy, verify or remove the server dashboard. Never creates, recreates or deletes the game
-# server itself (instance, Elastic IP, security group, bucket, world backups); see dashboard/README.md.
+# server itself (instance, security group, bucket, world backups); see dashboard/README.md.
 #
 #   PROFILE=enshrouded REGION=us-east-2 ./dashboard/deploy.sh [deploy|agent|verify|url|remove]
 #
@@ -43,14 +43,17 @@ BUCKET_REGION=$(aws s3api get-bucket-location --bucket "$BUCKET" --query Locatio
 [ "$BUCKET_REGION" = "None" ] && BUCKET_REGION=us-east-1
 FUNCTION_ARN="arn:aws:lambda:$REGION:$ACCOUNT:function:$FUNCTION"
 
-server_ip() { aws ec2 describe-addresses --filters Name=tag:Name,Values="$NAME" --query 'Addresses[0].PublicIp' --output text; }
-server_running() {
-    [ "$(aws ec2 describe-instances --filters Name=tag:Name,Values="$NAME" Name=instance-state-name,Values=running \
-        --query 'length(Reservations)' --output text)" != "0" ]
+running_instance() {  # "<instance-id> <public-ip>" of the running game server, or "None None"
+    aws ec2 describe-instances --filters Name=tag:Name,Values="$NAME" Name=instance-state-name,Values=running \
+        --query 'Reservations[0].Instances[0].[InstanceId,PublicIpAddress]' --output text
 }
-ssh_server() {
-    ssh -i "$KEY_FILE" -o UserKnownHostsFile="$KNOWN_HOSTS" -o StrictHostKeyChecking=accept-new \
-        -o ConnectTimeout=10 "ubuntu@$(server_ip)" "$@"
+server_ip() { running_instance | cut -f2; }
+server_running() { [ "$(running_instance | cut -f1)" != "None" ]; }
+ssh_server() {  # no Elastic IP: the IP changes on every start, so host keys are stored under the instance ID
+    local id ip
+    read -r id ip < <(running_instance)
+    ssh -i "$KEY_FILE" -o UserKnownHostsFile="$KNOWN_HOSTS" -o HostKeyAlias="$id" -o StrictHostKeyChecking=accept-new \
+        -o ConnectTimeout=10 "ubuntu@$ip" "$@"
 }
 ensure_role() {  # name, trusted service, [condition json]
     if ! aws iam get-role --role-name "$1" >/dev/null 2>&1; then
@@ -218,7 +221,7 @@ deploy_function() {
          \"Resource\": [\"arn:aws:s3:::$BUCKET/world/*\", \"arn:aws:s3:::$BUCKET/downloads/*\"]},
         {\"Sid\": \"ListBackups\", \"Effect\": \"Allow\", \"Action\": \"s3:ListBucket\", \"Resource\": \"arn:aws:s3:::$BUCKET\"},
         {\"Sid\": \"DescribeServer\", \"Effect\": \"Allow\",
-         \"Action\": [\"ec2:DescribeInstances\", \"ec2:DescribeAddresses\", \"ec2:DescribeSecurityGroups\"], \"Resource\": \"*\"},
+         \"Action\": [\"ec2:DescribeInstances\", \"ec2:DescribeSecurityGroups\"], \"Resource\": \"*\"},
         {\"Sid\": \"StartStopGameServerOnly\", \"Effect\": \"Allow\", \"Action\": [\"ec2:StartInstances\", \"ec2:StopInstances\"],
          \"Resource\": \"arn:aws:ec2:$REGION:$ACCOUNT:instance/*\", \"Condition\": {\"StringEquals\": {\"aws:ResourceTag/Name\": \"$NAME\"}}},
         {\"Sid\": \"BackupDocumentOnly\", \"Effect\": \"Allow\", \"Action\": \"ssm:SendCommand\",
@@ -439,7 +442,8 @@ case "$ACTION" in
         else
             echo "Login:     unchanged (see $SECRETS or set DASHBOARD_USERNAME/DASHBOARD_PASSWORD)"
         fi
-        echo "Check it:  PROFILE=$PROFILE REGION=$REGION $0 verify"
+        bucket_arg=""; [ "$BUCKET" != "enshrouded-backups-$ACCOUNT-$REGION" ] && bucket_arg="BUCKET=$BUCKET "
+        echo "Check it:  PROFILE=$PROFILE REGION=$REGION $bucket_arg$0 verify"
         ;;
     agent) install_agent ;;
     verify) verify ;;

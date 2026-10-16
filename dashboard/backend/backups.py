@@ -2,8 +2,9 @@
 
 A backup is only marked succeeded after the instance script reports the uploaded keys, sizes and
 SHA-256 *and* S3 confirms both objects with matching size and checksum metadata. Only one backup
-runs at a time (LOCK/backup). Retention keeps 48 hours, but never deletes the latest successful
-backup, never touches in-progress ones, and never deletes the newest object under world/.
+runs at a time (LOCK/backup). Retention keeps the newest RETENTION_COUNT successful backups however
+old they are, so a pause never thins them out; everything older than the oldest kept one goes. It never
+touches in-progress backups and never deletes the newest object under world/.
 
 Objects per backup <id> (= <UTC stamp>-<type>):
   world/<id>.tar.gz       savegame/ + enshrouded_server.json  (disaster recovery; has passwords)
@@ -11,7 +12,7 @@ Objects per backup <id> (= <UTC stamp>-<type>):
 """
 import json
 
-RETENTION_SECONDS = 48 * 3600
+RETENTION_COUNT = 24  # successful backups kept, regardless of age
 LOCK_TTL_SECONDS = 15 * 60
 STALE_SECONDS = 30 * 60
 TYPES = ("automatic", "manual", "shutdown")
@@ -178,35 +179,39 @@ def health(store, now, instance_state):
 
 
 def apply_retention(store, cloud, now):
-    """Expire backups older than 48 h. Returns what was removed."""
+    """Keep the newest RETENTION_COUNT successful backups; expire what's older. Returns what was removed."""
     import schedules
 
     items, _ = store.query("BACKUP", newest_first=True)
-    latest = latest_successful(items)
+    for i in items:
+        if i["status"] == "in_progress" and schedules.parse_iso(i["startedAt"]) < now - STALE_SECONDS:
+            store.update("BACKUP", i["sk"], {"status": "failed", "finishedAt": schedules.iso(now),
+                                             "reason": "Never finished (timed out)."}, expect={"status": "in_progress"})
+    succeeded = sorted((i for i in items if i["status"] == "succeeded"), key=lambda i: i["sk"], reverse=True)
+    if len(succeeded) <= RETENTION_COUNT:
+        return {"records": [], "objects": []}  # nothing is old enough yet, however long ago it was taken
+    # Ids start with the UTC stamp, so they sort by time. Everything older than the oldest kept backup goes:
+    # older backups with their files, and failed or skipped runs from before it.
+    cutoff = succeeded[RETENTION_COUNT - 1]
+    cutoff_started = schedules.parse_iso(cutoff["startedAt"])
     removed_items, removed_keys = [], []
     for i in items:
-        started = schedules.parse_iso(i["startedAt"])
-        if i["status"] == "in_progress":
-            if started < now - STALE_SECONDS:
-                store.update("BACKUP", i["sk"], {"status": "failed", "finishedAt": schedules.iso(now),
-                                                 "reason": "Never finished (timed out)."}, expect={"status": "in_progress"})
+        if i["status"] == "in_progress" or i["sk"] >= cutoff["sk"]:
             continue
-        if latest is not None and i["sk"] == latest["sk"]:
-            continue
-        if started < now - RETENTION_SECONDS:
-            keys = [k for k in (i.get("key"), i.get("downloadKey")) if k]
-            cloud.delete_objects(keys)
-            store.delete("BACKUP", i["sk"])
-            removed_items.append(i["sk"])
-            removed_keys += keys
+        keys = [k for k in (i.get("key"), i.get("downloadKey")) if k]
+        cloud.delete_objects(keys)
+        store.delete("BACKUP", i["sk"])
+        removed_items.append(i["sk"])
+        removed_keys += keys
 
-    # Objects without a record (older CLI backups, records already gone)
+    # Objects without a record (older CLI backups, records already gone). An upload still in flight has
+    # no record keys yet either, but it is newer than the cutoff.
     remaining, _ = store.query("BACKUP", newest_first=True)
     referenced = {k for i in remaining for k in (i.get("key"), i.get("downloadKey")) if k}
     world = cloud.list_objects("world/")
     newest_world = max((o["key"] for o in world), default=None)
     orphans = [o["key"] for o in world + cloud.list_objects("downloads/")
                if o["key"] not in referenced and o["key"] != newest_world
-               and o["lastModified"] < now - RETENTION_SECONDS]
+               and o["lastModified"] < cutoff_started]
     cloud.delete_objects(orphans)
     return {"records": removed_items, "objects": removed_keys + orphans}

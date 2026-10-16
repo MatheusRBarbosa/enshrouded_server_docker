@@ -36,6 +36,7 @@ class RunningServer(unittest.TestCase):
         self.assertEqual(self.model["server"]["status"]["state"], "online")
         self.assertEqual(self.model["server"]["name"], "Fixture World")
         self.assertEqual(self.model["server"]["address"], "203.0.113.10:15637")
+        self.assertIn("Changes every time the server starts", self.rows["address"]["statusNote"])
         self.assertEqual(self.model["pendingRestart"], 0)
         self.assertEqual(self.model["notices"], [])
 

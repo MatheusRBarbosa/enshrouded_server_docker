@@ -58,6 +58,7 @@
           <div class="address" id="address-box" hidden>
             <span class="k">Address</span><span class="v mono" id="address"></span>
             <button type="button" class="btn small" id="copy-address">Copy</button>
+            <span class="address-hint">Changes every time the server starts</span>
           </div>
         </div>
         <div class="actions">
@@ -83,7 +84,7 @@
     <!-- Backups -->
     <section id="tab-backups" class="tab" aria-label="Backups" hidden>
       <div class="section-head">
-        <div><h2>Backups</h2><p class="times">Hourly while the server runs, and before every stop. Kept for 48 hours; the latest good one is always kept.</p></div>
+        <div><h2>Backups</h2><p class="times">Hourly while the server runs, and before every stop. The newest 24 successful backups are kept, however old they are.</p></div>
         <div class="toolbar">
           <button type="button" class="btn ghost" id="backups-refresh">Refresh</button>
           <button type="button" class="btn primary" id="backups-create">Create backup now</button>

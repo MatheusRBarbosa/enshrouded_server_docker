@@ -250,14 +250,11 @@ class App:
             snapshot = self.cloud.read_json(SNAPSHOT_KEY)
         except Exception:  # noqa: BLE001
             errors.append("Could not read the latest report from the game server.")
-        try:
-            eip = self.cloud.elastic_ip()
-        except Exception:  # noqa: BLE001
-            eip = None
         out["instance"] = None if not instance else {
             "state": instance["state"], "type": instance["type"], "launchTime": schedules.iso(instance["launchTime"]),
-            # The game's default query port, so players only need the IP
-            "address": eip or instance.get("publicIp")}
+            # No Elastic IP: a new public IP on every start, none while stopped. The game's default
+            # query port is left out, so players only need the IP.
+            "address": instance.get("publicIp")}
         out["server"] = self.readiness(instance, snapshot, now) if instance or not errors else \
             {"state": "unknown", "label": "Unknown", "detail": "Could not determine the state."}
         out["serverName"] = ((snapshot or {}).get("config") or {}).get("name")

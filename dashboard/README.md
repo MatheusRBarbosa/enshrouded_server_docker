@@ -31,7 +31,7 @@ Instance: enshrouded-inspect timer (settings snapshot), CloudWatch agent (logs),
 | `backend/api.py` | HTTP routes, the login gate and background tasks |
 | `backend/auth.py` | Signed session cookie, CSRF, login throttling |
 | `backend/ops.py` | Start/stop and scheduled runs |
-| `backend/backups.py` | Backup workflow, verification, history, 48 h retention |
+| `backend/backups.py` | Backup workflow, verification, history, retention (newest 24) |
 | `backend/schedules.py` | Cron and time zones, skips, run claims |
 | `backend/logs.py` | Log retrieval and limits |
 | `backend/store.py` | DynamoDB access, plus an in-memory twin used by tests and the dev server |
@@ -121,14 +121,13 @@ There is no automatic start: after the midnight stop, the server stays off until
 **History:** the Backups tab lists backups 15 per page, with type, status, size and reason. Downloads are 5-minute presigned links, handed out only to logged-in users.
 
 **Retention:**
-- **Expiry:** after each backup, records and objects older than **48 hours** are deleted.
+- **By count, not by age:** after each backup, the newest **24 successful backups** are kept, however old they are. A weekend or a month without play never thins them out.
+- **The cutoff:** once there are more than 24, everything older than the 24th-newest successful backup is deleted: older backups with their files, failed and skipped runs, and files with no record (for example old backups made with the command-line script). With 24 or fewer, nothing is deleted.
 - **Always kept:**
-  - the latest successful backup, even if newer ones failed
   - backups still in progress
   - the newest object in `world/`
 - **Stuck backups:** a backup still in progress after 30 minutes is marked failed.
-- **Files with no record:** for example, old backups made with the command-line script. They are removed once they're more than 48 hours old.
-- **Safety net:** the bucket's own 30-day lifecycle rule on `world/` stays in place.
+- **Nothing else deletes backups:** the bucket has no lifecycle rule.
 
 **The old timer:** the 6-hourly `enshrouded-backup.timer` from `deploy/aws/bootstrap.sh` is turned off when the agent is installed and turned back on by `remove`. Its service still exists, because `deploy/aws/apply-config.sh` uses it.
 
@@ -179,9 +178,11 @@ After changing the settings inspector, regenerate its fixture with `python3 dash
 2. Run the deploy and the checks:
 
    ```bash
-   PROFILE=enshrouded REGION=us-east-2 ./dashboard/deploy.sh          # prints URL and login
-   PROFILE=enshrouded REGION=us-east-2 ./dashboard/deploy.sh verify   # checks resources + 401s
+   PROFILE=enshrouded REGION=sa-east-1 BUCKET=enshrouded-backups-<account>-us-east-2 ./dashboard/deploy.sh          # prints URL and login
+   PROFILE=enshrouded REGION=sa-east-1 BUCKET=enshrouded-backups-<account>-us-east-2 ./dashboard/deploy.sh verify   # checks resources + 401s
    ```
+
+   `REGION` is where the game server runs; the dashboard is deployed next to it. `BUCKET` is needed because the backups stayed in their us-east-2 bucket when the server moved to São Paulo.
 
 The game server must already exist (`deploy/aws/launch.sh`).
 
@@ -199,21 +200,21 @@ The game server must already exist (`deploy/aws/launch.sh`).
 | Lambda `enshrouded-dashboard` + function URL | python3.13 arm64, 256 MB, 600 s timeout. Async retries: 2, at most 30 min old |
 | IAM role `enshrouded-dashboard`, inline `dashboard` | Least privilege; EC2 start/stop and SSM limited to the instance tagged `Name=enshrouded` |
 | IAM role `enshrouded-scheduler`, inline `invoke-dashboard` | May only invoke the dashboard Lambda |
-| Scheduler group `enshrouded` with 3 schedules | See Schedule |
+| Scheduler group `enshrouded` with 2 schedules | See Schedule |
 | DynamoDB `enshrouded-dashboard` | On-demand, TTL on `ttl` |
 | SSM document `enshrouded-dashboard-backup` | The only command the Lambda may run on the instance |
 | Log groups `/enshrouded/server`, `/aws/lambda/enshrouded-dashboard` | 3-day retention |
 | Inline policy `dashboard-agent` on `enshrouded-server` | S3 uploads to `dashboard/`, `downloads/`, `world/`; log shipping; SSM agent registration |
 | On the instance | Agent files and units (see the diagram); CloudWatch agent; `enshrouded-backup.timer` disabled |
 
-**Monthly cost (us-east-2):**
+**Monthly cost:**
 - **Added by the dashboard:** about **$0.30**, almost all CloudWatch Logs ingestion (~0.3 GB) plus S3 requests. Lambda, Scheduler, DynamoDB on-demand and SSM Run Command stay within free tiers or cost cents.
-- **Saved by the nightly stop:** the m6a.xlarge costs about $0.17 per hour it runs (≈$124/month around the clock). It's off from midnight until someone starts it, so every 10 hours off saves about $1.73. The disk ($2.40) and Elastic IP ($3.65) cost the same either way.
+- **Saved by the nightly stop:** the m6a.xlarge and its public IPv4 address ($0.005/h) are billed only for the hours it runs, and it's off from midnight until someone starts it. The disk costs the same either way. There's no Elastic IP, so nothing is charged for an idle address.
 
 ## Remove
 
 ```bash
-PROFILE=enshrouded REGION=us-east-2 ./dashboard/deploy.sh remove
+PROFILE=enshrouded REGION=sa-east-1 BUCKET=enshrouded-backups-<account>-us-east-2 ./dashboard/deploy.sh remove
 ```
 
 **Deleted:**
@@ -227,4 +228,4 @@ PROFILE=enshrouded REGION=us-east-2 ./dashboard/deploy.sh remove
 - the agent, the CloudWatch agent and the autostart unit are removed
 - `enshrouded-backup.timer` is turned back on
 
-**Kept:** the instance, the container, the Elastic IP, the security group, the bucket and every `world/` backup.
+**Kept:** the instance, the container, the security group, the bucket and every `world/` backup.

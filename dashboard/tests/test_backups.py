@@ -141,26 +141,53 @@ class Retention(unittest.TestCase):
         self.store.put(item)
         return bid
 
-    def test_keeps_48_hours(self):
-        old = self.add(49, "succeeded")
-        recent = self.add(47, "succeeded")
-        newest = self.add(1, "succeeded")
-        backups.apply_retention(self.store, self.cloud, T0)
-        self.assertIsNone(self.store.get("BACKUP", old))
-        self.assertNotIn(f"world/{old}.tar.gz", self.cloud.objects)
-        self.assertNotIn(f"downloads/{old}.tar.gz", self.cloud.objects)
-        for bid in (recent, newest):
-            self.assertIsNotNone(self.store.get("BACKUP", bid))
-            self.assertIn(f"world/{bid}.tar.gz", self.cloud.objects)
+    def add_successes(self, count, oldest_hours_ago):
+        """`count` hourly successes, oldest first, the oldest `oldest_hours_ago` h ago."""
+        return [self.add(oldest_hours_ago - n, "succeeded") for n in range(count)]
 
-    def test_latest_success_survives_newer_failures(self):
-        good = self.add(60, "succeeded")
-        self.add(50, "failed")
-        self.add(10, "failed")
+    def add_cli_backup(self, hours_ago):
+        """An archive from the command-line timer: world/<stamp>.tar.gz, no record."""
+        key = f"world/{backups._stamp(T0 - hours_ago * HOUR)}.tar.gz"
+        self.cloud.objects[key] = {"size": 1, "metadata": {}, "lastModified": T0 - hours_ago * HOUR}
+        return key
+
+    def assert_kept(self, bid):
+        self.assertIsNotNone(self.store.get("BACKUP", bid))
+        self.assertIn(f"world/{bid}.tar.gz", self.cloud.objects)
+        self.assertIn(f"downloads/{bid}.tar.gz", self.cloud.objects)
+
+    def assert_gone(self, bid):
+        self.assertIsNone(self.store.get("BACKUP", bid))
+        self.assertNotIn(f"world/{bid}.tar.gz", self.cloud.objects)
+        self.assertNotIn(f"downloads/{bid}.tar.gz", self.cloud.objects)
+
+    def test_keeps_newest_24_however_old(self):
+        ids = self.add_successes(26, oldest_hours_ago=125)  # every one of them older than 100 h
+        removed = backups.apply_retention(self.store, self.cloud, T0)
+        for bid in ids[:2]:
+            self.assert_gone(bid)
+        for bid in ids[2:]:
+            self.assert_kept(bid)
+        self.assertEqual(sorted(removed["records"]), sorted(ids[:2]))
+
+    def test_a_long_gap_does_not_expire_backups(self):
+        # Friday's backups, nothing all weekend, then Monday's first one
+        ids = self.add_successes(5, oldest_hours_ago=74) + [self.add(0, "succeeded")]
+        self.assertEqual(backups.apply_retention(self.store, self.cloud, T0), {"records": [], "objects": []})
+        for bid in ids:
+            self.assert_kept(bid)
+
+    def test_failed_and_skipped_runs_follow_the_cutoff(self):
+        old_failure = self.add(60, "failed")
+        self.add_successes(10, oldest_hours_ago=34)
         backups.apply_retention(self.store, self.cloud, T0)
-        self.assertIsNotNone(self.store.get("BACKUP", good))
-        self.assertIn(f"world/{good}.tar.gz", self.cloud.objects)
-        self.assertEqual(len(self.store.query("BACKUP")[0]), 2)  # 50 h failure expired, 10 h one kept
+        self.assertIsNotNone(self.store.get("BACKUP", old_failure))  # fewer than 24 successes: nothing goes
+        self.add_successes(15, oldest_hours_ago=24)  # 25 successes now; the cutoff is the one 33 h ago
+        recent_skip = self.add(5, "skipped")
+        backups.apply_retention(self.store, self.cloud, T0)
+        self.assertIsNone(self.store.get("BACKUP", old_failure))
+        self.assertIsNotNone(self.store.get("BACKUP", recent_skip))
+        self.assertEqual(len([i for i in self.store.query("BACKUP")[0] if i["status"] == "succeeded"]), 24)
 
     def test_in_progress_is_protected_and_stale_ones_fail(self):
         running = self.add(0.1, "in_progress")
@@ -170,17 +197,29 @@ class Retention(unittest.TestCase):
         self.assertEqual(self.store.get("BACKUP", stale)["status"], "failed")
 
     def test_orphan_objects(self):
+        old = self.add_cli_backup(100)
+        old_download = old.replace("world/", "downloads/")
+        self.cloud.objects[old_download] = dict(self.cloud.objects[old])
         self.add(1, "succeeded")
-        self.cloud.objects["world/20261001T000000Z.tar.gz"] = {"size": 1, "metadata": {}, "lastModified": T0 - 100 * HOUR}
-        self.cloud.objects["world/20261015T180000Z.tar.gz"] = {"size": 1, "metadata": {}, "lastModified": T0 - HOUR}
         backups.apply_retention(self.store, self.cloud, T0)
-        self.assertNotIn("world/20261001T000000Z.tar.gz", self.cloud.objects)
-        self.assertIn("world/20261015T180000Z.tar.gz", self.cloud.objects)
+        self.assertIn(old, self.cloud.objects)  # fewer than 24 successes: nothing goes
+        self.add_successes(25, oldest_hours_ago=50)  # 26 successes; the cutoff is the one 48 h ago
+        recent = self.add_cli_backup(7)
+        backups.apply_retention(self.store, self.cloud, T0)
+        self.assertNotIn(old, self.cloud.objects)
+        self.assertNotIn(old_download, self.cloud.objects)
+        self.assertIn(recent, self.cloud.objects)
 
     def test_never_deletes_newest_world_object(self):
         self.cloud.objects["world/20261001T000000Z.tar.gz"] = {"size": 1, "metadata": {}, "lastModified": T0 - 100 * HOUR}
         backups.apply_retention(self.store, self.cloud, T0)
         self.assertIn("world/20261001T000000Z.tar.gz", self.cloud.objects)
+        # Also past the cutoff, when the orphan's key sorts last (say a hand-made upload with a future stamp)
+        self.add_successes(25, oldest_hours_ago=50)
+        self.cloud.objects["world/29991231T000000Z.tar.gz"] = {"size": 1, "metadata": {}, "lastModified": T0 - 100 * HOUR}
+        backups.apply_retention(self.store, self.cloud, T0)
+        self.assertIn("world/29991231T000000Z.tar.gz", self.cloud.objects)
+        self.assertNotIn("world/20261001T000000Z.tar.gz", self.cloud.objects)
 
 
 class Health(unittest.TestCase):

@@ -55,8 +55,6 @@ else
         BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
     aws s3api put-bucket-encryption --bucket "$BUCKET" --server-side-encryption-configuration \
         '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-    aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-configuration \
-        '{"Rules":[{"ID":"expire-world-backups","Status":"Enabled","Filter":{"Prefix":"world/"},"Expiration":{"Days":30}}]}'  >/dev/null
 fi
 
 # --- IAM role so the instance can write/read backups --------------------------
@@ -103,17 +101,6 @@ for perm in \
     aws ec2 authorize-security-group-ingress --group-id "$SG" --ip-permissions "$perm" >/dev/null 2>&1 || true
 done
 
-# --- Elastic IP -----------------------------------------------------------------
-ALLOC=$(aws ec2 describe-addresses --filters Name=tag:Name,Values="$NAME" \
-    --query 'Addresses[0].AllocationId' --output text)
-if [ "$ALLOC" = "None" ]; then
-    log "Allocating Elastic IP"
-    ALLOC=$(aws ec2 allocate-address --domain vpc \
-        --tag-specifications "ResourceType=elastic-ip,Tags=[{Key=Name,Value=$NAME}]" \
-        --query AllocationId --output text)
-fi
-EIP=$(aws ec2 describe-addresses --allocation-ids "$ALLOC" --query 'Addresses[0].PublicIp' --output text)
-
 # --- Instance -------------------------------------------------------------------
 INSTANCE=$(aws ec2 describe-instances \
     --filters Name=tag:Name,Values="$NAME" Name=instance-state-name,Values=pending,running,stopping,stopped \
@@ -144,28 +131,30 @@ if [ "$INSTANCE" = "None" ]; then
         sleep 10
     done
     rm -f "$USERDATA"
-    # The EIP may have pointed at a previous instance with a different host key
-    ssh-keygen -f "$KNOWN_HOSTS" -R "$EIP" >/dev/null 2>&1 || true
 elif [ "$(aws ec2 describe-instances --instance-ids "$INSTANCE" --query 'Reservations[0].Instances[0].State.Name' --output text)" != "running" ]; then
     log "Starting existing instance $INSTANCE"
     aws ec2 start-instances --instance-ids "$INSTANCE" >/dev/null
 fi
 log "Waiting for $INSTANCE to run"
 aws ec2 wait instance-running --instance-ids "$INSTANCE"
-aws ec2 associate-address --allocation-id "$ALLOC" --instance-id "$INSTANCE" --allow-reassociation >/dev/null
+# No Elastic IP: the default subnet gives the instance a public IP that changes on every start
+IP=$(aws ec2 describe-instances --instance-ids "$INSTANCE" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+[ "$IP" = "None" ] && { echo "ERROR: $INSTANCE has no public IP; its subnet must auto-assign one." >&2; exit 1; }
 
 # --- Deploy the container ---------------------------------------------------------
-SSH=(ssh -i "$KEY_FILE" -o UserKnownHostsFile="$KNOWN_HOSTS" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5)
-log "Waiting for SSH on $EIP"
-until "${SSH[@]}" -o BatchMode=yes "ubuntu@$EIP" true 2>/dev/null; do sleep 5; done
+# Host keys are stored under the instance ID, since the IP changes and gets reused by other instances
+SSH=(ssh -i "$KEY_FILE" -o UserKnownHostsFile="$KNOWN_HOSTS" -o HostKeyAlias="$INSTANCE"
+     -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5)
+log "Waiting for SSH on $IP"
+until "${SSH[@]}" -o BatchMode=yes "ubuntu@$IP" true 2>/dev/null; do sleep 5; done
 log "Waiting for bootstrap (cloud-init) to finish"
-"${SSH[@]}" "ubuntu@$EIP" 'cloud-init status --wait >/dev/null; cloud-init status --long | grep -q "status: done"' \
+"${SSH[@]}" "ubuntu@$IP" 'cloud-init status --wait >/dev/null; cloud-init status --long | grep -q "status: done"' \
     || { echo "ERROR: bootstrap failed; see /var/log/cloud-init-output.log on the instance." >&2; exit 1; }
 
 log "Restoring the latest backup if the world is empty"
-"${SSH[@]}" "ubuntu@$EIP" 'sudo enshrouded-restore'
+"${SSH[@]}" "ubuntu@$IP" 'sudo enshrouded-restore'
 
-if ! "${SSH[@]}" "ubuntu@$EIP" 'test -f /srv/enshrouded/enshrouded_server.json'; then
+if ! "${SSH[@]}" "ubuntu@$IP" 'test -f /srv/enshrouded/enshrouded_server.json'; then
     random_pw() { head -c 256 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 12; }
     ADMIN_PW="${ADMIN_PW:-$(random_pw)}" FRIEND_PW="${FRIEND_PW:-$(random_pw)}"
     GUEST_PW="${GUEST_PW:-$(random_pw)}" VISITOR_PW="${VISITOR_PW:-$(random_pw)}"
@@ -174,14 +163,14 @@ if ! "${SSH[@]}" "ubuntu@$EIP" 'test -f /srv/enshrouded/enshrouded_server.json';
     jq --arg admin "$ADMIN_PW" --arg friend "$FRIEND_PW" --arg guest "$GUEST_PW" --arg visitor "$VISITOR_PW" \
        '.userGroups |= map(.password = ({Admin: $admin, Friend: $friend, Guest: $guest, Visitor: $visitor}[.name] // .password))' \
        "$REPO_DIR/deploy/aws/enshrouded_server.json" \
-       | "${SSH[@]}" "ubuntu@$EIP" 'sudo install -o 1000 -g 1000 -m 644 /dev/stdin /srv/enshrouded/enshrouded_server.json'
+       | "${SSH[@]}" "ubuntu@$IP" 'sudo install -o 1000 -g 1000 -m 644 /dev/stdin /srv/enshrouded/enshrouded_server.json'
 fi
 
 log "Building image and (re)starting the container"
-"${SSH[@]}" "ubuntu@$EIP" 'mkdir -p ~/build'
-scp -q -i "$KEY_FILE" -o UserKnownHostsFile="$KNOWN_HOSTS" \
-    "$REPO_DIR/Dockerfile" "$REPO_DIR/entrypoint.sh" "ubuntu@$EIP:build/"
-"${SSH[@]}" "ubuntu@$EIP" 'set -e
+"${SSH[@]}" "ubuntu@$IP" 'mkdir -p ~/build'
+scp -q -i "$KEY_FILE" -o UserKnownHostsFile="$KNOWN_HOSTS" -o HostKeyAlias="$INSTANCE" \
+    "$REPO_DIR/Dockerfile" "$REPO_DIR/entrypoint.sh" "ubuntu@$IP:build/"
+"${SSH[@]}" "ubuntu@$IP" 'set -e
     sudo docker build -q -t enshrouded:local ~/build
     sudo docker rm -f enshrouded >/dev/null 2>&1 || true
     sudo docker run -d --name enshrouded --restart unless-stopped --stop-timeout 90 \
@@ -196,7 +185,7 @@ fi
 
 cat <<EOF
 
-Done. Instance $INSTANCE ($INSTANCE_TYPE) in $REGION, address $EIP:15637
-Backups: s3://$BUCKET/world/ ($BUCKET_REGION), every 6h, kept 30 days
-Logs:    ssh -i $KEY_FILE -o UserKnownHostsFile=$KNOWN_HOSTS ubuntu@$EIP 'sudo docker logs -f enshrouded'
+Done. Instance $INSTANCE ($INSTANCE_TYPE) in $REGION, address $IP:15637 (changes on every start)
+Backups: s3://$BUCKET/world/ ($BUCKET_REGION), every 6h
+Logs:    ssh -i $KEY_FILE -o UserKnownHostsFile=$KNOWN_HOSTS -o HostKeyAlias=$INSTANCE ubuntu@$IP 'sudo docker logs -f enshrouded'
 EOF

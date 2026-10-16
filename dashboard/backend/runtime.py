@@ -41,15 +41,11 @@ def collect(cloud, snapshot_key):
     except Exception:  # noqa: BLE001
         errors.append("Could not read the server machine's state from AWS.")
     try:
-        runtime["elasticIp"] = cloud.elastic_ip()
-    except Exception:  # noqa: BLE001
-        errors.append("Could not read the server address from AWS.")
-    try:
         ports = cloud.udp_open_to_all(groups)
         runtime["firewall"] = None if ports is None else {"udpOpenToAll": ports}
     except Exception:  # noqa: BLE001
         errors.append("Could not read the firewall rules from AWS.")
-    ip = runtime.get("elasticIp") or (runtime.get("instance") or {}).get("publicIp")
+    ip = (runtime.get("instance") or {}).get("publicIp")
     if ip and (runtime.get("instance") or {}).get("state") == "running":
         try:
             runtime["steam"] = steam_listing(ip)

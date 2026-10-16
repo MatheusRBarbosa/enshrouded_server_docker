@@ -58,7 +58,7 @@ class Cloud:
     def instance(self):
         self._maybe_fail("instance")
         return {"id": "i-0123", "state": self.state, "type": "m6a.xlarge", "launchTime": T0 - 3600,
-                "publicIp": "203.0.113.10", "region": "us-east-2", "securityGroups": ["sg-1"]}
+                "publicIp": "203.0.113.10" if self.state in ("pending", "running") else None, "region": "us-east-2", "securityGroups": ["sg-1"]}
 
     def start_instance(self, instance_id):
         self._maybe_fail("start_instance")
@@ -67,9 +67,6 @@ class Cloud:
     def stop_instance(self, instance_id):
         self._maybe_fail("stop_instance")
         self.state = "stopping"
-
-    def elastic_ip(self):
-        return "203.0.113.10"
 
     def udp_open_to_all(self, groups):
         return [15637]

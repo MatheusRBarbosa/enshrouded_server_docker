@@ -24,10 +24,12 @@ if [ -f "$SECRETS" ]; then
     done
 fi
 
-EIP=$(aws --profile "$PROFILE" --region "$REGION" ec2 describe-addresses \
-    --filters Name=tag:Name,Values="$NAME" --query 'Addresses[0].PublicIp' --output text)
-[ "$EIP" = "None" ] && { echo "ERROR: no Elastic IP tagged Name=$NAME in $REGION." >&2; exit 1; }
-SSH=(ssh -i "$KEY_FILE" -o UserKnownHostsFile="$KNOWN_HOSTS" -o StrictHostKeyChecking=accept-new "ubuntu@$EIP")
+# The public IP changes on every start, so host keys are stored under the instance ID
+read -r INSTANCE IP < <(aws --profile "$PROFILE" --region "$REGION" ec2 describe-instances \
+    --filters Name=tag:Name,Values="$NAME" Name=instance-state-name,Values=running \
+    --query 'Reservations[0].Instances[0].[InstanceId,PublicIpAddress]' --output text)
+[ "$INSTANCE" = "None" ] && { echo "ERROR: no running instance tagged Name=$NAME in $REGION; start it first." >&2; exit 1; }
+SSH=(ssh -i "$KEY_FILE" -o UserKnownHostsFile="$KNOWN_HOSTS" -o HostKeyAlias="$INSTANCE" -o StrictHostKeyChecking=accept-new "ubuntu@$IP")
 
 live=$("${SSH[@]}" "sudo cat $LIVE_CONFIG")
 merged=$(jq --argjson live "$live" \
@@ -49,7 +51,7 @@ changed_pw=$(jq -rn --argjson a "$live" --argjson b "$merged" \
     '[$b.userGroups[] as $g | select(([$a.userGroups[] | select(.name == $g.name) | .password][0]) != $g.password) | $g.name] | join(", ")')
 [ -n "$changed_pw" ] && log "Password changed for: $changed_pw"
 
-log "Stopping server, taking a backup, writing config, starting server on $EIP"
+log "Stopping server, taking a backup, writing config, starting server on $IP"
 "${SSH[@]}" 'cat > /tmp/enshrouded_server.json.new' <<<"$merged"
 "${SSH[@]}" "set -e
     sudo docker stop enshrouded >/dev/null

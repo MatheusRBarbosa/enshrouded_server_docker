@@ -26,7 +26,6 @@ CONTAINER = {"exists": True, "status": "running", "running": True, "startedAt": 
 RUNNING = {
     "errors": [],
     "instance": {"state": "running", "type": "m6a.xlarge", "region": "us-east-2", "publicIp": "203.0.113.10"},
-    "elasticIp": "203.0.113.10",
     "firewall": {"udpOpenToAll": [15637]},
     "steam": {"listed": True, "servers": [{"addr": "203.0.113.10:15637", "gameport": 15636}]},
 }

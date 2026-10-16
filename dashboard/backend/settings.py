@@ -256,14 +256,14 @@ def players_rows(ctx):
 def networking_rows(ctx):
     rows = []
     port = ctx.config.get("queryPort")
-    eip = ctx.rt.get("elasticIp") or ctx.instance.get("publicIp")
+    ip = ctx.instance.get("publicIp")
     log_ip = ctx.log.get("publicIp")
     steam = ctx.rt.get("steam")
-    if eip:
-        note = "Elastic IP: stays the same across restarts."
-        if log_ip and log_ip == eip:
+    if ip:
+        note = "Changes every time the server starts. Players can also find the server by name in the game's server list."
+        if log_ip and log_ip == ip:
             note += " The server reported the same address to Steam."
-        address = f"{eip}:{port}" if port else eip
+        address = f"{ip}:{port}" if port else ip
         rows.append(runtime_row("address", "Server address", address, "AWS EC2", note,
                                 description="Copy this if you add the server by address."))
     if port is not None:
@@ -292,7 +292,7 @@ def networking_rows(ctx):
         rows.append(runtime_row("steam.listed", "Steam server list", steam["listed"], "Steam Web API",
                                 display="Listed" if steam["listed"] else "Not listed",
                                 note="Checked against Steam's master server list for this address."))
-    elif eip:
+    elif ip:
         rows.append(runtime_row("steam.listed", "Steam server list", None, "Steam Web API", note="Steam didn't answer."))
     return rows
 

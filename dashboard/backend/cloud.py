@@ -58,10 +58,6 @@ class Cloud:
     def stop_instance(self, instance_id):
         self.ec2.stop_instances(InstanceIds=[instance_id])
 
-    def elastic_ip(self):
-        resp = self.ec2.describe_addresses(Filters=[{"Name": "tag:Name", "Values": [self.name]}])
-        return resp["Addresses"][0]["PublicIp"] if resp["Addresses"] else None
-
     def udp_open_to_all(self, group_ids):
         if not group_ids:
             return None

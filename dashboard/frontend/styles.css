@@ -108,6 +108,7 @@ h1 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 .address { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .address .k, .stat .k, .card > .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 .address .v { font-size: 15px; user-select: all; overflow-wrap: anywhere; }
+.address-hint { color: var(--muted); font-size: 13px; }
 .times { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }

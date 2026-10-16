@@ -29,6 +29,12 @@ class Status(unittest.TestCase):
         data = body(self.b.get("/api/status"))
         self.assertEqual(data["server"]["state"], "stopped")
         self.assertEqual(data["recentErrors"], [])
+        self.assertIsNone(data["instance"]["address"])  # no Elastic IP: the address is assigned at start
+
+    def test_address_is_the_current_public_ip(self):
+        self.cloud.instance = lambda: {"id": "i-0123", "state": "running", "type": "m6a.xlarge", "launchTime": 0,
+                                       "publicIp": "198.51.100.7", "region": "sa-east-1", "securityGroups": []}
+        self.assertEqual(body(self.b.get("/api/status"))["instance"]["address"], "198.51.100.7")
 
     def test_partial_failures_are_reported_not_fatal(self):
         self.cloud.fail.add("read_json")

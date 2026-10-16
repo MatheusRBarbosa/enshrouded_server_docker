@@ -27,6 +27,7 @@ GROUP=enshrouded                     # EventBridge Scheduler group
 DOCUMENT=enshrouded-dashboard-backup # SSM command document
 LOG_GROUP=/enshrouded/server
 LAMBDA_LOG_GROUP=/aws/lambda/$FUNCTION
+METRICS_NAMESPACE=Enshrouded           # memory metric from the CloudWatch agent (backend/metrics.py)
 TIMEZONE=America/Sao_Paulo
 KEY_FILE="$HOME/.ssh/enshrouded.pem"
 KNOWN_HOSTS="$HOME/.ssh/known_hosts_enshrouded"
@@ -133,6 +134,8 @@ install_agent() {
          \"Resource\": [\"arn:aws:s3:::$BUCKET/dashboard/*\", \"arn:aws:s3:::$BUCKET/downloads/*\", \"arn:aws:s3:::$BUCKET/world/*\"]},
         {\"Sid\": \"ShipLogs\", \"Effect\": \"Allow\", \"Action\": [\"logs:CreateLogStream\", \"logs:PutLogEvents\", \"logs:DescribeLogStreams\"],
          \"Resource\": \"arn:aws:logs:$REGION:$ACCOUNT:log-group:$LOG_GROUP:*\"},
+        {\"Sid\": \"PublishMemory\", \"Effect\": \"Allow\", \"Action\": \"cloudwatch:PutMetricData\", \"Resource\": \"*\",
+         \"Condition\": {\"StringEquals\": {\"cloudwatch:namespace\": \"$METRICS_NAMESPACE\"}}},
         {\"Sid\": \"RunCommand\", \"Effect\": \"Allow\", \"Action\": [
             \"ssm:UpdateInstanceInformation\", \"ssm:ListInstanceAssociations\", \"ssm:DescribeAssociation\",
             \"ssm:GetDocument\", \"ssm:DescribeDocument\",
@@ -232,6 +235,7 @@ deploy_function() {
         {\"Sid\": \"State\", \"Effect\": \"Allow\",
          \"Action\": [\"dynamodb:GetItem\", \"dynamodb:PutItem\", \"dynamodb:UpdateItem\", \"dynamodb:DeleteItem\", \"dynamodb:Query\"],
          \"Resource\": \"arn:aws:dynamodb:$REGION:$ACCOUNT:table/$TABLE\"},
+        {\"Sid\": \"ReadUsageCharts\", \"Effect\": \"Allow\", \"Action\": \"cloudwatch:GetMetricData\", \"Resource\": \"*\"},
         {\"Sid\": \"ReadServerLogs\", \"Effect\": \"Allow\", \"Action\": \"logs:FilterLogEvents\",
          \"Resource\": \"arn:aws:logs:$REGION:$ACCOUNT:log-group:$LOG_GROUP:*\"},
         {\"Sid\": \"OwnLogs\", \"Effect\": \"Allow\", \"Action\": [\"logs:CreateLogStream\", \"logs:PutLogEvents\"],
@@ -369,6 +373,7 @@ verify() {
         id=$(aws ec2 describe-instances --filters Name=tag:Name,Values="$NAME" Name=instance-state-name,Values=running --query 'Reservations[0].Instances[0].InstanceId' --output text)
         check "instance $id is online in SSM" "[ \"\$(aws ssm describe-instance-information --filters Key=InstanceIds,Values=$id --query 'InstanceInformationList[0].PingStatus' --output text)\" = Online ]"
         check "instance ships logs (stream 'game' exists)" "aws logs describe-log-streams --log-group-name $LOG_GROUP --log-stream-name-prefix game --query 'logStreams[0].logStreamName' --output text | grep -qx game"
+        check "instance publishes memory usage ($METRICS_NAMESPACE/mem_used_percent)" "aws cloudwatch list-metrics --namespace $METRICS_NAMESPACE --metric-name mem_used_percent --dimensions Name=InstanceId,Value=$id --query 'length(Metrics)' --output text | grep -qx 1"
     fi
     for g in "$LOG_GROUP" "$LAMBDA_LOG_GROUP"; do
         check "log retention 3 days on $g" "[ \"\$(aws logs describe-log-groups --log-group-name-prefix $g --query 'logGroups[0].retentionInDays' --output text)\" = 3 ]"

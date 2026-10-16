@@ -106,7 +106,7 @@ h1 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 [data-state="unknown"] .pill { background: var(--warn-bg); color: var(--warn-fg); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .address { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.address .k, .stat .k, .card > .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.address .k, .stat .k, .card > .k, .chart-head .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 .address .v { font-size: 15px; user-select: all; overflow-wrap: anywhere; }
 .address-hint { color: var(--muted); font-size: 13px; }
 .times { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
@@ -120,6 +120,28 @@ h1 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 .log-line time { flex: none; color: var(--log-muted); }
 .log-line span { overflow-wrap: anywhere; white-space: pre-wrap; }
 .card .log-line.error span { color: var(--bad-fg); }
+
+/* Usage charts (Overview): inline SVG scaled to the box; labels and hover marker are HTML */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.chart { gap: 8px; }
+.chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.chart-head .v { font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; }
+.chart p { margin: 0; }
+.plot { position: relative; height: 140px; margin: 6px 0 0 38px; touch-action: pan-y; }
+.plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.plot .grid { stroke: var(--line); stroke-width: 1; }
+.plot .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.plot .area { stroke: none; opacity: .14; }
+.chart.cpu { --series: var(--ember); }
+.chart.memory { --series: var(--shroud); }
+.plot .line { stroke: var(--series); }
+.plot .area { fill: var(--series); }
+.plot .y { position: absolute; left: -38px; width: 32px; text-align: right; font-size: 11px; color: var(--muted); transform: translateY(-50%); }
+.plot .y0 { top: 0; } .plot .y1 { top: 50%; } .plot .y2 { top: 100%; }
+.x-axis { display: flex; justify-content: space-between; margin-left: 38px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.plot-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font-size: 13px; color: var(--muted); padding: 0 12px; }
+.plot-dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--series); transform: translate(-50%, -50%); pointer-events: none; }
+.plot-tip { position: absolute; top: -8px; background: var(--fg); color: var(--bg); font-size: 12px; padding: 2px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
 
 /* Sections */
 .section-head { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; }

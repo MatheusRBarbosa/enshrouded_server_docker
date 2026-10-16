@@ -10,6 +10,7 @@ Environment (set by dashboard/deploy.sh):
   SCHEDULE_GROUP          EventBridge Scheduler group
   AWS_LAMBDA_FUNCTION_NAME  set by Lambda; used to hand long tasks to an async invocation
 """
+import datetime
 import json
 import os
 import time
@@ -29,6 +30,7 @@ class Cloud:
         self.s3 = boto3.client("s3", region_name=env["BUCKET_REGION"], config=cfg)
         self.ssm = boto3.client("ssm", config=cfg)
         self.logs = boto3.client("logs", config=cfg)
+        self.cloudwatch = boto3.client("cloudwatch", config=cfg)
         self.scheduler = boto3.client("scheduler", config=cfg)
         self.lambda_ = boto3.client("lambda", config=cfg)
 
@@ -140,6 +142,22 @@ class Cloud:
                 break
             kwargs["nextToken"] = resp["nextToken"]
         return events
+
+    # --- Metrics ----------------------------------------------------------------------------
+    def metric_data(self, queries, start, end):
+        """{query id: [[epoch ms, value], ...]} for GetMetricData queries over [start, end] (epoch s)."""
+        utc = datetime.timezone.utc
+        kwargs = {"MetricDataQueries": queries, "ScanBy": "TimestampAscending",
+                  "StartTime": datetime.datetime.fromtimestamp(start, utc), "EndTime": datetime.datetime.fromtimestamp(end, utc)}
+        out = {q["Id"]: [] for q in queries}
+        for _ in range(10):  # a 6-hour window fits in one page; bounded anyway
+            resp = self.cloudwatch.get_metric_data(**kwargs)
+            for r in resp["MetricDataResults"]:
+                out[r["Id"]] += [[int(t.timestamp() * 1000), v] for t, v in zip(r["Timestamps"], r["Values"])]
+            if not resp.get("NextToken"):
+                break
+            kwargs["NextToken"] = resp["NextToken"]
+        return out
 
     # --- Scheduler --------------------------------------------------------------------------
     def get_schedule(self, name):

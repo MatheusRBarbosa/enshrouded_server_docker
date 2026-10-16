@@ -140,7 +140,11 @@
       if (a.dataset.tab === name) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
     stopTimers();
-    if (name === "overview") { loadStatus(); timers.status = setInterval(loadStatus, 30000); }
+    if (name === "overview") {
+      loadStatus(); timers.status = setInterval(loadStatus, 30000);
+      // CloudWatch has new points every 1-5 minutes and charges per read, so the charts refresh slowly
+      loadMetrics(); timers.metrics = setInterval(function () { if (!document.hidden) loadMetrics(); }, 300000);
+    }
     if (name === "schedule") loadSchedules();
     if (name === "backups") loadBackups(true);
     if (name === "logs") { loadLogs(); timers.logs = setInterval(function () { if ($("log-auto").checked && !document.hidden) loadLogs(); }, 15000); }
@@ -207,6 +211,86 @@
     cards.appendChild(errBox);
   }
 
+  // --- Usage charts (Overview) ----------------------------------------------------------
+  var metrics = null;
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var CHARTS = {
+    cpu: { title: "CPU usage", note: "Whole machine, 5-minute average, last 6 hours." },
+    memory: { title: "Memory usage", note: "Whole machine, 1-minute average, last 6 hours." }
+  };
+
+  function loadMetrics() {
+    return api("GET", "/api/metrics").then(function (m) { metrics = m; renderMetrics(); })
+      .catch(function (err) { if (err.status !== 401) { metrics = { errors: [err.message], series: {} }; renderMetrics(); } });
+  }
+  function svgEl(tag, attrs) {
+    var n = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    return n;
+  }
+  function clock(ms) { return new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); }
+
+  function renderMetrics() {
+    Object.keys(CHARTS).forEach(function (key) { renderChart(key, metrics, (metrics.series || {})[key]); });
+  }
+
+  function renderChart(key, m, series) {
+    var box = clear($("chart-" + key));
+    box.className = "card chart " + key;
+    var pts = (series && series.points) || [];
+    var running = m.state === "running";
+    var t1 = Date.parse(m.to) || Date.now(), t0 = Date.parse(m.from) || t1 - 6 * 3600000, span = (t1 - t0) || 1;
+    var last = pts.length ? pts[pts.length - 1] : null;
+    var current = !running ? (m.state ? "Off" : "—") : last && t1 - last[0] < series.period * 3000 ? Math.round(last[1]) + "%" : "—";
+    box.appendChild(el("div", { class: "chart-head" }, [el("div", { class: "k", text: CHARTS[key].title }), el("div", { class: "v", text: current })]));
+    box.appendChild(el("p", { class: "muted small", text: CHARTS[key].note }));
+
+    var plot = el("div", { class: "plot", role: "img",
+      "aria-label": CHARTS[key].title + ", last 6 hours" + (running && current !== "—" ? ", now " + current : "") });
+    ["100%", "50%", "0%"].forEach(function (t, i) { plot.appendChild(el("span", { class: "y y" + i, text: t, "aria-hidden": "true" })); });
+    var svg = svgEl("svg", { viewBox: "0 0 1000 100", preserveAspectRatio: "none", "aria-hidden": "true" });
+    [0, 50, 100].forEach(function (y) { svg.appendChild(svgEl("line", { x1: 0, x2: 1000, y1: y, y2: y, class: "grid", "vector-effect": "non-scaling-stroke" })); });
+
+    // Gaps (machine stopped, agent restarting) break the line instead of drawing across them
+    var gap = (series ? series.period : 300) * 2500, segments = [], seg = null;
+    pts.forEach(function (p, i) {
+      if (!seg || p[0] - pts[i - 1][0] > gap) { seg = []; segments.push(seg); }
+      seg.push([((p[0] - t0) / span * 1000).toFixed(1), (100 - p[1]).toFixed(1)]);
+    });
+    segments.filter(function (s) { return s.length > 1; }).forEach(function (s) {
+      var line = s.map(function (xy, i) { return (i ? "L" : "M") + xy[0] + "," + xy[1]; }).join("");
+      svg.appendChild(svgEl("path", { d: "M" + s[0][0] + ",100" + line.replace(/^M/, "L") + "L" + s[s.length - 1][0] + ",100Z", class: "area" }));
+      svg.appendChild(svgEl("path", { d: line, class: "line", "vector-effect": "non-scaling-stroke" }));
+    });
+    plot.appendChild(svg);
+
+    var empty = null;
+    if (m.errors && m.errors.length) empty = m.errors.join(" ");
+    else if (!m.state) empty = "No server machine found.";
+    else if (pts.length < 2) empty = running ? "Collecting data. The first points appear within a few minutes of starting." : "The server is off. Usage is recorded while it runs.";
+    if (empty) plot.appendChild(el("div", { class: "plot-empty", text: empty }));
+    else {
+      var dot = el("div", { class: "plot-dot", hidden: true }), tip = el("div", { class: "plot-tip", hidden: true });
+      plot.appendChild(dot); plot.appendChild(tip);
+      var hide = function () { dot.hidden = true; tip.hidden = true; };
+      plot.addEventListener("pointermove", function (e) {
+        var r = plot.getBoundingClientRect(), t = t0 + (e.clientX - r.left) / r.width * span, best = null;
+        pts.forEach(function (p) { if (!best || Math.abs(p[0] - t) < Math.abs(best[0] - t)) best = p; });
+        if (!best || Math.abs(best[0] - t) > gap) return hide();
+        var fx = (best[0] - t0) / span;
+        dot.style.left = (fx * 100) + "%"; dot.style.top = (100 - best[1]) + "%";
+        tip.textContent = clock(best[0]) + " · " + best[1].toFixed(1) + "%";
+        tip.style.left = (fx * 100) + "%";
+        tip.style.transform = fx < 0.15 ? "translate(0, -100%)" : fx > 0.85 ? "translate(-100%, -100%)" : "translate(-50%, -100%)";
+        dot.hidden = false; tip.hidden = false;
+      });
+      plot.addEventListener("pointerleave", hide);
+    }
+    box.appendChild(plot);
+    box.appendChild(el("div", { class: "x-axis", "aria-hidden": "true" },
+      [el("span", { text: clock(t0) }), el("span", { text: clock(t0 + span / 2) }), el("span", { text: "now" })]));
+  }
+
   function opText(op) {
     var last = op.steps && op.steps.length ? op.steps[op.steps.length - 1].text : "Starting";
     return (op.kind === "stop" ? "Stopping the server: " : "Starting the server: ") + last + "…";
@@ -230,7 +314,7 @@
     }, 5000);
   }
 
-  $("act-refresh").addEventListener("click", function () { var b = this; busy(b, true, "Refreshing…"); loadStatus().then(function () { busy(b, false); }); });
+  $("act-refresh").addEventListener("click", function () { var b = this; busy(b, true, "Refreshing…"); Promise.all([loadStatus(), loadMetrics()]).then(function () { busy(b, false); }); });
   $("copy-address").addEventListener("click", function () { copy($("address").textContent, "address"); });
   $("act-start").addEventListener("click", function () {
     var btn = this;

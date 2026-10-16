@@ -18,9 +18,10 @@ Browser ──HTTPS──► Lambda function URL (enshrouded-dashboard)
                      ├─ DynamoDB enshrouded-dashboard: sessions, throttling, skips, runs, backups
                      ├─ S3 <backup bucket>: world/, downloads/, dashboard/snapshot.json
                      ├─ CloudWatch Logs /enshrouded/server (read only)
+                     ├─ CloudWatch metrics: CPU (AWS/EC2) and memory (Enshrouded), read only
                      └─ EventBridge Scheduler: read its own schedules (no changes)
 EventBridge Scheduler (group enshrouded) ──► same Lambda: stop 00:00, backup hourly :30
-Instance: enshrouded-inspect timer (settings snapshot), CloudWatch agent (logs),
+Instance: enshrouded-inspect timer (settings snapshot), CloudWatch agent (logs, memory),
           enshrouded-dashboard-backup (run by SSM), enshrouded-autostart.service
 ```
 
@@ -34,6 +35,7 @@ Instance: enshrouded-inspect timer (settings snapshot), CloudWatch agent (logs),
 | `backend/backups.py` | Backup workflow, verification, history, retention (newest 24) |
 | `backend/schedules.py` | Cron and time zones, skips, run claims |
 | `backend/logs.py` | Log retrieval and limits |
+| `backend/metrics.py` | CPU and memory history for the Overview charts, cached for 2 minutes |
 | `backend/store.py` | DynamoDB access, plus an in-memory twin used by tests and the dev server |
 | `backend/cloud.py` | Every AWS call |
 | `backend/settings.py`, `catalog.py`, `sanitize.py`, `runtime.py` | Server Settings: normalization, labels, redaction, live facts |
@@ -145,6 +147,13 @@ The CloudWatch agent on the instance ships three streams to `/enshrouded/server`
 
 **On the page:** the Logs tab refreshes every 15 s, and the Overview shows the last hour's `[E]` lines.
 
+### CPU and memory charts
+
+The Overview shows CPU and memory usage of the whole machine over the last 6 hours. Hovering shows the exact value, and gaps mean the server was off.
+- **CPU:** EC2's built-in `CPUUtilization`, from free basic monitoring, with one point every 5 minutes.
+- **Memory:** EC2 can't see inside the machine, so the CloudWatch agent publishes `mem_used_percent` every minute as the custom metric `Enshrouded/mem_used_percent` (dimension `InstanceId`). It's then also visible in the AWS console next to CPU.
+- **Cost control:** CloudWatch bills every metric read, so the page refreshes the charts every 5 minutes, and the Lambda caches one result for 2 minutes that every viewer shares. The Lambda's role may only read metrics; the instance may only publish to the `Enshrouded` namespace.
+
 ### Server settings
 
 This part is unchanged from the first version, and is now a secondary tab whose groups start collapsed. Values come from the instance's settings snapshot (`agent/enshrouded_inspect.py`, every 2 minutes) and live AWS and Steam facts.
@@ -204,11 +213,12 @@ The game server must already exist (`deploy/aws/launch.sh`).
 | DynamoDB `enshrouded-dashboard` | On-demand, TTL on `ttl` |
 | SSM document `enshrouded-dashboard-backup` | The only command the Lambda may run on the instance |
 | Log groups `/enshrouded/server`, `/aws/lambda/enshrouded-dashboard` | 3-day retention |
-| Inline policy `dashboard-agent` on `enshrouded-server` | S3 uploads to `dashboard/`, `downloads/`, `world/`; log shipping; SSM agent registration |
+| Inline policy `dashboard-agent` on `enshrouded-server` | S3 uploads to `dashboard/`, `downloads/`, `world/`; log shipping; memory metric (namespace `Enshrouded` only); SSM agent registration |
 | On the instance | Agent files and units (see the diagram); CloudWatch agent; `enshrouded-backup.timer` disabled |
 
 **Monthly cost:**
 - **Added by the dashboard:** about **$0.30**, almost all CloudWatch Logs ingestion (~0.3 GB) plus S3 requests. Lambda, Scheduler, DynamoDB on-demand and SSM Run Command stay within free tiers or cost cents.
+- **Charts:** the memory metric is 1 custom metric, inside CloudWatch's always-free 10; otherwise it would be $0.30/month, prorated to the hours the server runs. Reading the charts costs $0.01 per 1,000 metrics read; at 2 metrics every 5 minutes per viewer, that's cents a month.
 - **Saved by the nightly stop:** the m6a.xlarge and its public IPv4 address ($0.005/h) are billed only for the hours it runs, and it's off from midnight until someone starts it. The disk costs the same either way. There's no Elastic IP, so nothing is charged for an idle address.
 
 ## Remove

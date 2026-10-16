@@ -12,6 +12,7 @@ Item kinds (pk / sk):
   LOCK       / <name>                   owner + expiresAt
   OP         / <id>                     start/stop operations started from the dashboard
   BACKUP     / <id>                     id sorts by time: <UTC stamp>-<type>
+  CACHE      / metrics                  last CPU/memory query, shared by viewers for 2 minutes
 """
 import copy
 import decimal

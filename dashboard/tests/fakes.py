@@ -45,6 +45,8 @@ class Cloud:
         self.backup_behavior = "success"
         self.commands = {}
         self.fail = set()  # method names that raise
+        self.metric_points = None  # {"cpu": [[ms, v]], "memory": [...]}; None = synthetic data
+        self.metric_queries = []
         self.schedules = {
             "enshrouded-stop": schedule("cron(0 0 * * ? *)"),
             "enshrouded-backup": schedule("cron(30 * * * ? *)"),
@@ -120,6 +122,20 @@ class Cloud:
         out = [{"t": e["t"], "m": e["m"]} for e in self.events
                if e["stream"].startswith(stream_prefix) and start_ms <= e["t"] <= end_ms]
         return out[:max_events]
+
+    def metric_data(self, queries, start, end):
+        """Synthetic usage over the window: CPU every 5 min, memory every minute (like CloudWatch)."""
+        self._maybe_fail("metric_data")
+        self.metric_queries.append(queries)
+        if self.metric_points is not None:
+            return copy.deepcopy(self.metric_points)
+        out = {}
+        for q in queries:
+            period = q["MetricStat"]["Period"]
+            first = int(start // period + 1) * period
+            out[q["Id"]] = [[t * 1000, (35.0 if q["Id"] == "cpu" else 52.0) + (t // period % 7) * 1.5]
+                            for t in range(first, int(end), period)]
+        return out
 
     def get_schedule(self, name):
         s = self.schedules.get(name)

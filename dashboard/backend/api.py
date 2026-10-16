@@ -16,10 +16,11 @@ the session's CSRF token and a same-origin request.
     GET  /api/backups/<id>
     GET  /api/backups/<id>/download       302 to a 5-minute presigned URL (savegame only)
     GET  /api/logs?source=&minutes=&filter=
+    GET  /api/metrics                     CPU and memory, last 6 hours (cached 2 min)
     GET  /api/settings
 
 Tasks (direct invocations only; a Function URL request always arrives as an HTTP event):
-    {"task": "scheduled", "schedule": "stop|start|backup", "scheduledTime": "..."}  EventBridge Scheduler
+    {"task": "scheduled", "schedule": "stop|backup", "scheduledTime": "..."}  EventBridge Scheduler
     {"task": "backup", "id": "..."}   {"task": "stop", "op": "..."}               async continuations
 """
 import base64
@@ -32,6 +33,7 @@ import urllib.parse
 import auth
 import backups
 import logs
+import metrics
 import ops
 import runtime
 import schedules
@@ -179,6 +181,7 @@ class App:
             ("GET", r"/api/backups/(?P<id>[\w\-]+)/download", lambda a: self.backup_download(a["id"])),
             ("GET", r"/api/backups/(?P<id>[\w\-]+)", lambda a: self.backup_get(a["id"])),
             ("GET", r"/api/logs", lambda a: self.logs(req)),
+            ("GET", r"/api/metrics", lambda a: json_response(200, metrics.fetch(self.store, self.cloud, self.clock.now()))),
             ("GET", r"/api/settings", lambda a: self.settings()),
         ]
         path_matched = False

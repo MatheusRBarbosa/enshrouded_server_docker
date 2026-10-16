@@ -1,5 +1,12 @@
 {
-  "agent": {"run_as_user": "root"},
+  "agent": {"run_as_user": "root", "omit_hostname": true},
+  "metrics": {
+    "namespace": "Enshrouded",
+    "append_dimensions": {"InstanceId": "${aws:InstanceId}"},
+    "metrics_collected": {
+      "mem": {"measurement": ["mem_used_percent"], "metrics_collection_interval": 60}
+    }
+  },
   "logs": {
     "force_flush_interval": 5,
     "logs_collected": {
